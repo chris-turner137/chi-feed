@@ -5,7 +5,7 @@ Usage:
   chi-feed init
   chi-feed add [<source>]
   chi-feed list
-  chi-feed fetch
+  chi-feed fetch [<id>]
   chi-feed flow
   chi-feed search
 
@@ -65,8 +65,6 @@ def command_feed_init(args):
   except:
     raise NotImplementedError
 
-  raise NotImplementedError
-
 def db_configure(connection):
   """ Ensure that the database is valid. """
   with closing(connection.cursor()) as cursor:
@@ -77,6 +75,31 @@ def db_configure(connection):
 
   # TODO: Check that the format of the tables is as expected.
   connection.commit()
+
+def store_new_entries(entries):
+  """ Add new entries to the database. """
+  with sqlite3.connect('.chi/feed/entries.db') as connection:
+    # Ensure that the database is initialised
+    db_configure(connection)
+
+    # Add all entries where there is no contrain violation.
+    with closing(connection.cursor()) as cursor:
+      added = 0
+      for entry in entries:
+        try:
+          cursor.execute('INSERT INTO `entries` VALUES (?,?);',
+                         (entry['id'], json.dumps(entry)))
+          added += 0
+        except sqlite3.DatabaseError as e:
+          # Ignore attempts to add duplicate entries
+          if e.args[0] != 'UNIQUE constraint failed: entries.id':
+            raise
+          print('Ignored duplicate entry with id "{}"'.format(entry.id))
+        except sqlite3.DatabaseError as e:
+          print(e)
+          raise
+      print('Entries added', added)
+      connection.commit()
 
 def command_feed_add(args):
   """ Add an RSS feed to track. """
@@ -100,28 +123,7 @@ def command_feed_add(args):
   print(json.dumps(feed, indent=2))
 
   # Add new entries to the database
-  with sqlite3.connect('.chi/feed/entries.db') as connection:
-    # Ensure that the database is initialised
-    db_configure(connection)
-
-    # Add all entries where there is no contrain violation.
-    with closing(connection.cursor()) as cursor:
-      added = 0
-      for entry in rss['entries']:
-        try:
-          cursor.execute('INSERT INTO `entries` VALUES (?,?);',
-                         (entry['id'], json.dumps(entry)))
-          added += 0
-        except sqlite3.DatabaseError as e:
-          # Ignore attempts to add duplicate entries
-          if e.args[0] != 'UNIQUE constraint failed: entries.id':
-            raise
-          print('Ignored duplicate entry with id "{}"'.format(entry.id))
-        except sqlite3.DatabaseError as e:
-          print(e)
-          raise
-      print('Entries added', added)
-      connection.commit()
+  store_new_entries(rss['entries'])
 
 def command_feed_list(args):
   """ List tracked RSS feeds. """
@@ -150,7 +152,33 @@ def command_feed_fetch(args):
   """ Fetch articles from RSS feeds. """
   if not os.path.exists('.chi/feed'):
     raise NotImplementedError
-  raise NotImplementedError
+
+  # Load the feeds configuration
+  feeds = load_feeds_config()
+
+  matched = False
+  for feed in feeds:
+    # Check the feed matches the specification
+    if args['<id>'] is not None and args['<id>'] != feed['id']:
+      continue
+    matched = True
+
+    # Fetch the feed
+    print('Fetching feed "{}".'.format(feed['id']))
+
+    # Fetch and parse the RSS feed
+    try:
+      rss = feedparser.parse(args['<source>'])
+    except:
+      raise NotImplementedError
+
+    # Add new entries to the database
+    store_new_entries(rss['entries'])
+
+  if not matched:
+    print("No feeds to fetch.")
+    return 1
+  return 0
 
 def command_feed_flow(args):
   """ Process articles from RSS feeds. """

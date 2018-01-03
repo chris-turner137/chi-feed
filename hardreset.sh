@@ -1,1 +1,1 @@
-rm .chi/feed/entries.db
+rm -rf .chi/
