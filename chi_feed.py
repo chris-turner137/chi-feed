@@ -13,9 +13,23 @@ Options:
   -h --help  Show this help.
 """
 from docopt import docopt
+import os, errno
 
 def command_feed_init(args):
   """ Create the filesystem structure for a valid chi-feed instance. """
+  try:
+    # Create the .chi/feed directory
+    os.makedirs('.chi/feed')
+  except OSError as e:
+    if e.errno == errno.EEXIST:
+      # Already exists
+      pass
+    else:
+      # Something else
+      raise
+  except:
+    raise NotImplementedError
+
   raise NotImplementedError
 
 def command_feed_add(args):
