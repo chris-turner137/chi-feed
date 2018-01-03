@@ -46,7 +46,7 @@ def load_feeds_config():
 def save_feeds_config(config):
   try:
     with open('.chi/feed/feeds.json', 'w') as f:
-      json.dump(config, f)
+      json.dump(config, f, indent=2)
   except:
     raise NotImplementedError
 
@@ -130,7 +130,20 @@ def command_feed_list(args):
 
   # Load the feeds configuration
   feeds = load_feeds_config()
-  print(json.dumps(feeds, indent=2))
+
+  try:
+    if sys.stdout.isatty():
+      # Human-readable output
+      for feed in feeds:
+        f = feed.copy()
+        del f['dump']
+        print(json.dumps(f, indent=2))
+    else:
+      # Machine-readable output
+      for feed in feeds:
+        print(json.dumps(feed))
+  except:
+    raise NotImplementedError
   return 0
 
 def command_feed_fetch(args):
