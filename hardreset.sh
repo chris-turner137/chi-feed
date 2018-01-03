@@ -1,0 +1,1 @@
+rm .chi/feed/entries.db
