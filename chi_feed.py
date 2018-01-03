@@ -14,6 +14,20 @@ Options:
 """
 from docopt import docopt
 import os, errno
+import json
+
+def load_feeds_config():
+  if not os.path.exists('.chi/feed'):
+    raise NotImplementedError
+
+  # If the file doesn't exists the feed list is empty
+  try:
+    with open('.chi/feed/feeds.json', 'r') as f:
+      return json.load(f)
+  except FileNotFoundError as e:
+    return []
+  except:
+    raise NotImplementedError
 
 def command_feed_init(args):
   """ Create the filesystem structure for a valid chi-feed instance. """
@@ -38,7 +52,8 @@ def command_feed_add(args):
 
 def command_feed_list(args):
   """ List tracked RSS feeds. """
-  raise NotImplementedError
+  feeds = load_feeds_config()
+  print(feeds)
 
 def command_feed_fetch(args):
   """ Fetch articles from RSS feeds. """
