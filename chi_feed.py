@@ -70,6 +70,7 @@ def db_configure(connection):
   with closing(connection.cursor()) as cursor:
     try:
       cursor.execute('CREATE TABLE IF NOT EXISTS `entries` (id STRING UNIQUE, dump STRING);')
+      cursor.execute('CREATE TABLE IF NOT EXISTS `classify` (entry STRING, edge STRING);')
     except:
       raise NotImplementedError
 
@@ -78,6 +79,7 @@ def db_configure(connection):
 
 def store_new_entries(entries):
   """ Add new entries to the database. """
+  flow = load_flow_config()
   with sqlite3.connect('.chi/feed/entries.db') as connection:
     # Ensure that the database is initialised
     db_configure(connection)
@@ -89,6 +91,8 @@ def store_new_entries(entries):
         try:
           cursor.execute('INSERT INTO `entries` VALUES (?,?);',
                          (entry['id'], json.dumps(entry)))
+          cursor.execute('INSERT INTO `classify` VALUES (?,?);',
+                         (entry['id'], flow['source']))
           added += 0
         except sqlite3.DatabaseError as e:
           # Ignore attempts to add duplicate entries
@@ -180,10 +184,48 @@ def command_feed_fetch(args):
     return 1
   return 0
 
+def load_flow_config():
+  # If the file doesn't exists then use the default flow
+  try:
+    with open('.chi/feed/flow.json', 'r') as f:
+      # TODO: Perhaps this ought to be validated
+      return json.load(f)
+  except FileNotFoundError as e:
+    default = {
+      'edges': ['unread', 'starred', 'unstarred'],
+      'source': 'unread',
+      'nodes': [
+        {
+          'id': 'check-unread',
+          'inlets': ['unread'],
+          'outlets': ['starred', 'unstarred']
+        },
+        {
+          'id': 'check-starred',
+          'inlets': ['starred'],
+          'outlets': ['unstarred']
+        }
+      ]
+    }
+    with open('.chi/feed/flow.json', 'w') as f:
+      json.dump(default, f, indent=2)
+    return default
+  except:
+    raise NotImplementedError
+
 def command_feed_flow(args):
   """ Process articles from RSS feeds. """
   if not os.path.exists('.chi/feed'):
     raise NotImplementedError
+
+  # Load the flow configuration
+  flow = load_flow_config()
+
+  print(json.dumps(flow, indent=2))
+
+  for node in flow.nodes:
+    print(json.dumps(node, indent=2))
+
   raise NotImplementedError
 
 def command_feed_search(args):
