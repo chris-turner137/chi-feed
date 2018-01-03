@@ -19,6 +19,7 @@ import json
 import feedparser
 import sqlite3
 from contextlib import closing
+from builtins import input
 
 def feed_fromRSS(source, rss):
   """
@@ -81,6 +82,8 @@ def store_new_entries(entries):
   """ Add new entries to the database. """
   flow = load_flow_config()
   with sqlite3.connect('.chi/feed/entries.db') as connection:
+    connection.isolation_level = None
+
     # Ensure that the database is initialised
     db_configure(connection)
 
@@ -93,7 +96,7 @@ def store_new_entries(entries):
                          (entry['id'], json.dumps(entry)))
           cursor.execute('INSERT INTO `classify` VALUES (?,?);',
                          (entry['id'], flow['source']))
-          added += 0
+          added += 1
         except sqlite3.DatabaseError as e:
           # Ignore attempts to add duplicate entries
           if e.args[0] != 'UNIQUE constraint failed: entries.id':
@@ -197,11 +200,13 @@ def load_flow_config():
       'nodes': [
         {
           'id': 'check-unread',
+          'description': 'Should I star this for later?',
           'inlets': ['unread'],
           'outlets': ['starred', 'unstarred']
         },
         {
           'id': 'check-starred',
+          'description': 'Should I remove this star?',
           'inlets': ['starred'],
           'outlets': ['unstarred']
         }
@@ -223,10 +228,47 @@ def command_feed_flow(args):
 
   print(json.dumps(flow, indent=2))
 
-  for node in flow.nodes:
-    print(json.dumps(node, indent=2))
+  for node in flow['nodes']:
+    while True:
+      with sqlite3.connect('.chi/feed/entries.db') as connection:
+        connection.isolation_level = None
 
-  raise NotImplementedError
+        # Ensure that the database is initialised
+        db_configure(connection)
+
+        with closing(connection.cursor()) as cursor:
+          # Get the first entry matching one of the inlets
+          cursor.execute('SELECT * FROM `classify` WHERE `edge` IN (?) LIMIT 1;',
+                         node['inlets'])
+          row = cursor.fetchone()
+          if row is None:
+            break
+          entry, edge = row
+
+          # Lookup the entry in the entry table
+          cursor.execute('SELECT * FROM `entries` WHERE `id` == ?;', (entry,))
+          row = cursor.fetchone()
+          assert cursor.fetchone() is None
+
+          # Display the entry and question
+          print('Q: {} ({})'.format(node['id'], node['description']))
+          print('\n{}: {}\n'.format(edge, entry))
+          print('#', json.loads(row[1])['title'])
+          print()
+          print(json.loads(row[1])['summary'])
+          print()
+
+          # Prompt for input
+          print('q = Quit')
+          print('? ', end='')
+          s = input()
+          if s == '':
+            continue
+          if s == 'q':
+            return 0
+          else:
+            raise NotImplementedError
+  return 0
 
 def command_feed_search(args):
   """ Search database of articles built from RSS feeds. """
@@ -234,6 +276,8 @@ def command_feed_search(args):
     raise NotImplementedError
 
   with sqlite3.connect('.chi/feed/entries.db') as connection:
+    connection.isolation_level = None
+
     # Ensure that the database is initialised
     db_configure(connection)
 
