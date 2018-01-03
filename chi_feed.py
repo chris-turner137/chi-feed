@@ -15,6 +15,7 @@ Options:
 from docopt import docopt
 import os, errno
 import json
+import feedparser
 
 def load_feeds_config():
   if not os.path.exists('.chi/feed'):
@@ -48,6 +49,8 @@ def command_feed_init(args):
 
 def command_feed_add(args):
   """ Add an RSS feed to track. """
+  feed = feedparser.parse(args['<source>'])
+  print(feed)
   raise NotImplementedError
 
 def command_feed_list(args):
