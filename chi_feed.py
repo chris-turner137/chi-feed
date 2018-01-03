@@ -28,7 +28,7 @@ def feed_fromRSS(source, rss):
   configuration.
   """
   return {
-    'id': source, # Name to refer to in and queries
+    'id': source, # Name to refer to in queries
     'source': source, # Location to fetch from
     'title': rss.title, # Human-friendly title
     'dump': json.dumps(rss) # Save for future reference
@@ -128,8 +128,10 @@ def command_feed_add(args):
   save_feeds_config(feeds)
 
   # Dumps the feed description to stdout
-  print(json.dumps(rss.feed, indent=2))
-  print(json.dumps(feed, indent=2))
+  if sys.stdout.isatty():
+    print('Added feed "{}" ({}).'.format(feed['id'], feed['title']))
+  else:
+    print(json.dumps(feed, indent=2))
 
   # Add new entries to the database
   store_new_entries(rss['entries'])
@@ -146,9 +148,7 @@ def command_feed_list(args):
     if sys.stdout.isatty():
       # Human-readable output
       for feed in feeds:
-        f = feed.copy()
-        del f['dump']
-        print(json.dumps(f, indent=2))
+        print('* {} ({})'.format(feed['id'], feed['title']))
     else:
       # Machine-readable output
       for feed in feeds:
@@ -230,8 +230,6 @@ def command_feed_flow(args):
   # Load the flow configuration
   flow = load_flow_config()
 
-  print(json.dumps(flow, indent=2))
-
   for node in flow['nodes']:
     while True:
       with sqlite3.connect('.chi/feed/entries.db') as connection:
@@ -308,19 +306,18 @@ def command_feed_search(args):
     db_configure(connection)
 
     # Perform the search
-    print('Entries:')
     with closing(connection.cursor()) as cursor:
       connection.commit()
       try:
         cursor.execute('SELECT * FROM `entries`;')
         i = 0
         for i, row in enumerate(cursor):
-          print(row)
-        print("Row(s) affected: ", i)
+          if sys.stdout.isatty():
+            print('{} ({})'.format(row[0], json.loads(row[1])['title']))
+          else:
+            print(row[1])
       except Exception as e:
         raise NotImplementedError
-
-  raise NotImplementedError
 
 def command_feed(args):
   if args['init']:
