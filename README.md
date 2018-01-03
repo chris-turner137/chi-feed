@@ -14,6 +14,8 @@ Status: just about functional, wholly unstable.
 
 ## Subcommands
 
+These should in-fact be issued as `python3 chi-feed <command> <args>` instead of as advertised.
+
 ### `chi-feed init`
 
 Create the internal directory structure, marking the directory as a valid location to issue the other chi-feed commands.
@@ -45,6 +47,11 @@ In the meantime you might `grep` the results.
 
 For manipulating the configuration in ways not exposed in the command-line interface the `.chi/feed/feeds.json` and `.chi/feed/flow.json` files may be modified with a text editor.
 This is *of-course* undocumented and potentially unstable.
+
+## Dependencies
+
+* docopts
+* feedparser
 
 ## Filesystem structure
 
