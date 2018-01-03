@@ -20,16 +20,33 @@ import feedparser
 import sqlite3
 from contextlib import closing
 
-def load_feeds_config():
-  if not os.path.exists('.chi/feed'):
-    raise NotImplementedError
+def feed_fromRSS(source, rss):
+  """
+  Convert a source and feedparser feed description into an internal feed
+  configuration.
+  """
+  return {
+    'id': source, # Name to refer to in and queries
+    'source': source, # Location to fetch from
+    'title': rss.title, # Human-friendly title
+    'dump': json.dumps(rss) # Save for future reference
+  }
 
+def load_feeds_config():
   # If the file doesn't exists the feed list is empty
   try:
     with open('.chi/feed/feeds.json', 'r') as f:
+      # TODO: Perhaps this ought to be validated
       return json.load(f)
   except FileNotFoundError as e:
     return []
+  except:
+    raise NotImplementedError
+
+def save_feeds_config(config):
+  try:
+    with open('.chi/feed/feeds.json', 'w') as f:
+      json.dump(config, f)
   except:
     raise NotImplementedError
 
@@ -68,12 +85,19 @@ def command_feed_add(args):
 
   # Fetch and parse the RSS feed
   try:
-    feed = feedparser.parse(args['<source>'])
+    rss = feedparser.parse(args['<source>'])
   except:
     raise NotImplementedError
 
+  # Append the feed to the configuration file
+  feed = feed_fromRSS(args['<source>'], rss.feed)
+  feeds = load_feeds_config()
+  feeds.append(feed)
+  save_feeds_config(feeds)
+
   # Dumps the feed description to stdout
-  print(feed.feed)
+  print(json.dumps(rss.feed, indent=2))
+  print(json.dumps(feed, indent=2))
 
   # Add new entries to the database
   with sqlite3.connect('.chi/feed/entries.db') as connection:
@@ -83,7 +107,7 @@ def command_feed_add(args):
     # Add all entries where there is no contrain violation.
     with closing(connection.cursor()) as cursor:
       added = 0
-      for entry in feed['entries']:
+      for entry in rss['entries']:
         try:
           cursor.execute('INSERT INTO `entries` VALUES (?,?);',
                          (entry['id'], json.dumps(entry)))
@@ -101,8 +125,12 @@ def command_feed_add(args):
 
 def command_feed_list(args):
   """ List tracked RSS feeds. """
+  if not os.path.exists('.chi/feed'):
+    raise NotImplementedError
+
+  # Load the feeds configuration
   feeds = load_feeds_config()
-  print(feeds)
+  print(json.dumps(feeds, indent=2))
   return 0
 
 def command_feed_fetch(args):
