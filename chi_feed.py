@@ -20,6 +20,7 @@ import feedparser
 import sqlite3
 from contextlib import closing
 from builtins import input
+from datetime import datetime
 
 def feed_fromRSS(source, rss):
   """
@@ -71,7 +72,7 @@ def db_configure(connection):
   with closing(connection.cursor()) as cursor:
     try:
       cursor.execute('CREATE TABLE IF NOT EXISTS `entries` (id STRING UNIQUE, dump STRING);')
-      cursor.execute('CREATE TABLE IF NOT EXISTS `classify` (entry STRING, edge STRING);')
+      cursor.execute('CREATE TABLE IF NOT EXISTS `classify` (entry STRING, edge STRING, touched STRING);')
     except:
       raise NotImplementedError
 
@@ -88,14 +89,15 @@ def store_new_entries(entries):
     db_configure(connection)
 
     # Add all entries where there is no contrain violation.
+    now = datetime.now().isoformat()
     with closing(connection.cursor()) as cursor:
       added = 0
       for entry in entries:
         try:
           cursor.execute('INSERT INTO `entries` VALUES (?,?);',
                          (entry['id'], json.dumps(entry)))
-          cursor.execute('INSERT INTO `classify` VALUES (?,?);',
-                         (entry['id'], flow['source']))
+          cursor.execute('INSERT INTO `classify` VALUES (?,?,?);',
+                         (entry['id'], flow['source'], now))
           added += 1
         except sqlite3.DatabaseError as e:
           # Ignore attempts to add duplicate entries
@@ -202,13 +204,15 @@ def load_flow_config():
           'id': 'check-unread',
           'description': 'Should I star this for later?',
           'inlets': ['unread'],
-          'outlets': ['starred', 'unstarred']
+          'outlets': [{'answer': 'y', 'edge': 'starred'},
+                      {'answer': 'n', 'edge': 'unstarred'}]
         },
         {
           'id': 'check-starred',
           'description': 'Should I remove this star?',
           'inlets': ['starred'],
-          'outlets': ['unstarred']
+          'outlets': [{'answer': 'y', 'edge': 'unstarred'},
+                      {'answer': 'n', 'edge': 'starred'}]
         }
       ]
     }
@@ -238,12 +242,13 @@ def command_feed_flow(args):
 
         with closing(connection.cursor()) as cursor:
           # Get the first entry matching one of the inlets
-          cursor.execute('SELECT * FROM `classify` WHERE `edge` IN (?) LIMIT 1;',
+          cursor.execute('SELECT ROWID, * FROM `classify` WHERE `edge` IN (?) ORDER BY `touched` LIMIT 1;',
                          node['inlets'])
           row = cursor.fetchone()
           if row is None:
             break
-          entry, edge = row
+          print(row)
+          rowid, entry, edge, _ = row
 
           # Lookup the entry in the entry table
           cursor.execute('SELECT * FROM `entries` WHERE `id` == ?;', (entry,))
@@ -259,15 +264,36 @@ def command_feed_flow(args):
           print()
 
           # Prompt for input
-          print('q = Quit')
+          print('q = Quit, ', end='')
+          print(', '.join('{} = {}'.format(outlet['answer'], outlet['edge'])
+                for outlet in node['outlets']))
           print('? ', end='')
           s = input()
-          if s == '':
-            continue
+
+          # If 'q' is entered then quit the session
           if s == 'q':
             return 0
+
+          # If no input was provided touch the row and move on
+          elif s == '':
+            cursor.execute('UPDATE `classify` SET `touched` = ? WHERE ROWID == ?;',
+                           (datetime.now().isoformat(), rowid))
+            print('Touched row(s)', cursor.rowcount)
+            connection.commit()
+            continue
+
+          # Otherwise find the associated outlet and reclassify the entry accordingly
           else:
-            raise NotImplementedError
+            for outlet in node['outlets']:
+              if s == outlet['answer']:
+                # 
+                cursor.execute('UPDATE `classify` SET `edge` = ?, `touched` = ? WHERE ROWID == ?;',
+                               (outlet['edge'], datetime.now().isoformat(), rowid))
+                print('Reclassified row(s)', cursor.rowcount)
+                connection.commit()
+                break
+            else:
+              raise NotImplementedError
   return 0
 
 def command_feed_search(args):
