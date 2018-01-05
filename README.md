@@ -52,6 +52,7 @@ This is *of-course* undocumented and potentially unstable.
 
 * docopts
 * feedparser
+* lark-parser
 
 ## Filesystem structure
 
