@@ -7,7 +7,7 @@ Usage:
   chi-feed list
   chi-feed fetch [<id>]
   chi-feed flow
-  chi-feed search
+  chi-feed search [<query>]
 
 Options:
   -h --help  Show this help.
@@ -21,6 +21,7 @@ import sqlite3
 from contextlib import closing
 from builtins import input
 from datetime import datetime
+from query import get_parser, QueryLambdaTransformer
 
 def feed_fromRSS(source, rss):
   """
@@ -78,6 +79,11 @@ def db_configure(connection):
 
   # TODO: Check that the format of the tables is as expected.
   connection.commit()
+
+def entry_fromRow(row):
+  id, dump = row
+  dump = json.loads(dump)
+  return {'id': id, 'title': dump['title'], 'dump': dump}
 
 def store_new_entries(entries):
   """ Add new entries to the database. """
@@ -299,6 +305,17 @@ def command_feed_search(args):
   if not os.path.exists('.chi/feed'):
     raise NotImplementedError
 
+  if args['<query>'] is not None:
+    # Parse the query
+    tree = get_parser().parse(args['<query>'])
+    print(tree.pretty())
+
+    # Transform it into a predicate
+    predicate = QueryLambdaTransformer().transform(tree)
+  else:
+    # Default to returning everything
+    predicate = lambda x: True
+
   with sqlite3.connect('.chi/feed/entries.db') as connection:
     connection.isolation_level = None
 
@@ -311,7 +328,10 @@ def command_feed_search(args):
       try:
         cursor.execute('SELECT * FROM `entries`;')
         i = 0
-        for i, row in enumerate(cursor):
+        for row in cursor:
+          x = entry_fromRow(row)
+          if not predicate(x):
+            continue
           if sys.stdout.isatty():
             print('{} ({})'.format(row[0], json.loads(row[1])['title']))
           else:
