@@ -1,0 +1,2 @@
+#! /usr/bin/env bash
+python ~/Programming/chi-feed/chi_feed.py flow
