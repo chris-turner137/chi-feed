@@ -28,7 +28,7 @@ Add a feed.
 
 List feeds.
 
-### `chi-fetch`
+### `chi-feed fetch`
 
 Fetch new results from feeds.
 

@@ -124,6 +124,8 @@ def command_feed_add(args):
   # Fetch and parse the RSS feed
   try:
     rss = feedparser.parse(args['<source>'])
+    if rss.bozo == 1:
+      raise rss.bozo_exception
   except:
     raise NotImplementedError
 
@@ -183,7 +185,9 @@ def command_feed_fetch(args):
 
     # Fetch and parse the RSS feed
     try:
-      rss = feedparser.parse(args['<source>'])
+      rss = feedparser.parse(feed['source'])
+      if rss.bozo == 1:
+        raise rss.bozo_exception
     except:
       raise NotImplementedError
 
