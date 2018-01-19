@@ -21,6 +21,7 @@ import sqlite3
 from contextlib import closing
 from builtins import input
 from datetime import datetime
+from collections import namedtuple
 from query import get_parser, QueryLambdaTransformer
 
 def feed_fromRSS(source, rss):
@@ -80,10 +81,12 @@ def db_configure(connection):
   # TODO: Check that the format of the tables is as expected.
   connection.commit()
 
+Entry = namedtuple('Entry', ['id', 'title', 'dump'])
+
 def entry_fromRow(row):
   id, dump = row
   dump = json.loads(dump)
-  return {'id': id, 'title': dump['title'], 'dump': dump}
+  return Entry(id=id, title=dump['title'], dump=dump)
 
 def store_new_entries(entries):
   """ Add new entries to the database. """
@@ -255,7 +258,6 @@ def command_feed_flow(args):
           row = cursor.fetchone()
           if row is None:
             break
-          print(row)
           rowid, entry, edge, _ = row
 
           # Lookup the entry in the entry table
@@ -264,9 +266,10 @@ def command_feed_flow(args):
           assert cursor.fetchone() is None
 
           # Display the entry and question
+          entry = entry_fromRow(row)
           print('Q: {} ({})'.format(node['id'], node['description']))
           print('\n{}: {}\n'.format(edge, entry))
-          print('#', json.loads(row[1])['title'])
+          print('#', entry.title)
           print()
           print(json.loads(row[1])['summary'])
           print()
@@ -304,22 +307,9 @@ def command_feed_flow(args):
               raise NotImplementedError
   return 0
 
-def command_feed_search(args):
-  """ Search database of articles built from RSS feeds. """
+def db_query():
   if not os.path.exists('.chi/feed'):
     raise NotImplementedError
-
-  if args['<query>'] is not None:
-    # Parse the query
-    tree = get_parser().parse(args['<query>'])
-    print(tree.pretty())
-
-    # Transform it into a predicate
-    predicate = QueryLambdaTransformer().transform(tree)
-  else:
-    # Default to returning everything
-    predicate = lambda x: True
-
   with sqlite3.connect('.chi/feed/entries.db') as connection:
     connection.isolation_level = None
 
@@ -333,15 +323,45 @@ def command_feed_search(args):
         cursor.execute('SELECT * FROM `entries`;')
         i = 0
         for row in cursor:
-          x = entry_fromRow(row)
-          if not predicate(x):
-            continue
-          if sys.stdout.isatty():
-            print('{} ({})'.format(row[0], json.loads(row[1])['title']))
-          else:
-            print(row[1])
+          yield entry_fromRow(row)
       except Exception as e:
         raise NotImplementedError
+  return
+
+def pipe_query():
+  for line in sys.stdin:
+    d = json.loads(line)
+    yield Entry(d['id'], d['title'], d['dump'])
+
+def command_feed_search(args):
+  """ Search database of articles built from RSS feeds. """
+  if args['<query>'] is not None:
+    # Parse the query
+    tree = get_parser().parse(args['<query>'])
+    print(tree.pretty())
+
+    # Transform it into a predicate
+    predicate = QueryLambdaTransformer().transform(tree)
+  else:
+    # Default to returning everything
+    predicate = lambda x: True
+
+  # If input is from a terminal then use the local database as source otherwise
+  # take stdin as the datasource.
+  if sys.stdin.isatty():
+    source = db_query()
+  else:
+    source = pipe_query()
+
+  try:
+    with closing(source) as results:
+      for x in filter(predicate, results):
+        if sys.stdout.isatty():
+          print('{} ({})'.format(x.id, x.title))
+        else:
+          print(json.dumps(x._asdict()))
+  except Exception as e:
+    raise NotImplementedError
 
 def command_feed(args):
   if args['init']:
