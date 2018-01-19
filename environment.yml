@@ -1,0 +1,9 @@
+name: chifeed
+
+dependencies:
+- python=3.6
+- docopt
+- feedparser
+- pip
+- pip:
+  - lark-parser
