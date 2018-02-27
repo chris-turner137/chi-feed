@@ -271,8 +271,10 @@ def command_feed_flow(args):
           # Display the entry and question
           entry = entry_fromRow(row)
           print('Q: {} ({})'.format(node['id'], node['description']))
-          print('\n{}: {}\n'.format(edge, entry))
+          print('\n{}\n'.format(edge))
           print('#', entry.title)
+          print()
+          print(entry.authors)
           print()
           print(json.loads(row[1])['summary'])
           print()
