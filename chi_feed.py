@@ -18,6 +18,7 @@ import os, errno
 import json
 import feedparser
 import sqlite3
+import warnings
 from contextlib import closing
 from builtins import input
 from datetime import datetime
@@ -191,6 +192,8 @@ def command_feed_fetch(args):
       rss = feedparser.parse(feed['source'])
       if rss.bozo == 1:
         raise rss.bozo_exception
+    except feedparser.CharacterEncodingOverride as e:
+      warnings.warn('Ignoring feed exception "{}"'.format(repr(e)))
     except:
       raise NotImplementedError
 
