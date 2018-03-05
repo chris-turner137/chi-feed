@@ -24,6 +24,25 @@ from builtins import input
 from datetime import datetime
 from collections import namedtuple
 from query import get_parser, QueryLambdaTransformer
+from html.parser import HTMLParser
+
+class MLStripper(HTMLParser):
+  def __init__(self):
+    self.reset()
+    self.strict = False
+    self.convert_charrefs= True
+    self.fed = []
+
+  def handle_data(self, d):
+    self.fed.append(d)
+
+  def get_data(self):
+    return ''.join(self.fed)
+
+def strip_tags(html):
+  s = MLStripper()
+  s.feed(html)
+  return s.get_data()
 
 def feed_fromRSS(source, rss):
   """
@@ -82,12 +101,12 @@ def db_configure(connection):
   # TODO: Check that the format of the tables is as expected.
   connection.commit()
 
-Entry = namedtuple('Entry', ['id', 'title', 'dump'])
+Entry = namedtuple('Entry', ['id', 'title', 'authors', 'dump'])
 
 def entry_fromRow(row):
   id, dump = row
   dump = json.loads(dump)
-  return Entry(id=id, title=dump['title'], dump=dump)
+  return Entry(id=id, authors=dump['author'], title=dump['title'], dump=dump)
 
 def store_new_entries(entries):
   """ Add new entries to the database. """
@@ -274,7 +293,7 @@ def command_feed_flow(args):
           print('\n{}\n'.format(edge))
           print('#', entry.title)
           print()
-          print(entry.authors)
+          print(strip_tags(entry.authors))
           print()
           print(json.loads(row[1])['summary'])
           print()
