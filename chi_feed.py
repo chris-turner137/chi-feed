@@ -24,6 +24,7 @@ from builtins import input
 from datetime import datetime
 from collections import namedtuple
 from query import get_parser, QueryLambdaTransformer
+from database import db_configure
 from html.parser import HTMLParser
 
 class MLStripper(HTMLParser):
@@ -105,18 +106,6 @@ def command_feed_init(args):
       raise
   except:
     raise NotImplementedError
-
-def db_configure(connection):
-  """ Ensure that the database is valid. """
-  with closing(connection.cursor()) as cursor:
-    try:
-      cursor.execute('CREATE TABLE IF NOT EXISTS `entries` (id STRING UNIQUE, dump STRING);')
-      cursor.execute('CREATE TABLE IF NOT EXISTS `classify` (entry STRING, edge STRING, touched STRING);')
-    except:
-      raise NotImplementedError
-
-  # TODO: Check that the format of the tables is as expected.
-  connection.commit()
 
 Entry = namedtuple('Entry', ['id', 'title', 'authors', 'dump'])
 
