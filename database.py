@@ -20,6 +20,17 @@ def db_configure(connection):
     row = cursor.fetchone()
     schema_semver = row[0] if row is not None else None
 
-    # TODO: Check schema is as expected
+    # TODO: Check schema is as expected, and upgrade database if appropriate
+    return schema_semver
 
   connection.commit()
+
+if __name__ == '__main__':
+  if not os.path.exists('.chi/feed'):
+    raise NotImplementedError
+
+  with sqlite3.connect('.chi/feed/entries.db') as connection:
+    connection.isolation_level = None
+
+    # Ensure that the database is initialised
+    print(db_configure(connection))
