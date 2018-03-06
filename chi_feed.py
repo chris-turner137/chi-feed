@@ -44,6 +44,23 @@ def strip_tags(html):
   s.feed(html)
   return s.get_data()
 
+class Terminal(object):
+  BOLD = '\033[1m'
+  NORM = '\033[0m'
+  def __init__(self):
+    pass
+
+  def __call__(self, *args):
+    return self.fromMarkdown(' '.join(map(str, args)))
+
+  def fromMarkdown(self, source):
+    def fmt_line(line):
+      idx_hash = line.find('#')
+      if idx_hash != -1:
+        return line[:idx_hash] + Terminal.BOLD + line[idx_hash:] + Terminal.NORM
+      return line
+    return '\n'.join(map(fmt_line, source.splitlines()))
+
 def feed_fromRSS(source, rss):
   """
   Convert a source and feedparser feed description into an internal feed
@@ -291,11 +308,11 @@ def command_feed_flow(args):
           entry = entry_fromRow(row)
           print('Q: {} ({})'.format(node['id'], node['description']))
           print('\n{}\n'.format(edge))
-          print('#', entry.title)
+          print(Terminal()('#', entry.title))
           print()
           print(strip_tags(entry.authors))
           print()
-          print(json.loads(row[1])['summary'])
+          print(strip_tags(json.loads(row[1])['summary']))
           print()
 
           # Prompt for input
