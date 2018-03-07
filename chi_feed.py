@@ -327,9 +327,11 @@ def command_feed_flow(args):
           else:
             for outlet in node['outlets']:
               if s == outlet['answer']:
-                # 
+                now = datetime.now().isoformat()
                 cursor.execute('UPDATE `classify` SET `edge` = ?, `touched` = ? WHERE ROWID == ?;',
-                               (outlet['edge'], datetime.now().isoformat(), rowid))
+                               (outlet['edge'], now, rowid))
+                cursor.execute('INSERT INTO receipts VALUES (?,?,?,?);',
+                               (entry, node['id'], outlet['answer'], now))
                 print('Reclassified row(s)', cursor.rowcount)
                 connection.commit()
                 break
