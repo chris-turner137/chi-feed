@@ -7,6 +7,7 @@ Usage:
   chi-feed list
   chi-feed fetch [<id>]
   chi-feed flow
+  chi-feed tags
   chi-feed search [<query>]
 
 Options:
@@ -263,6 +264,26 @@ def load_flow_config():
   except:
     raise NotImplementedError
 
+def command_feed_tags(args):
+  """ List the tags. """
+  if not os.path.exists('.chi/feed'):
+    raise NotImplementedError
+
+  # Load the flow configuration
+  flow = load_flow_config()
+
+  with sqlite3.connect('.chi/feed/entries.db') as connection:
+    connection.isolation_level = None
+
+    # Ensure that the database is initialised
+    db_configure(connection)
+
+    with closing(connection.cursor()) as cursor:
+      for tag in flow['edges']:
+        cursor.execute('SELECT count(*) FROM `tags` WHERE tag == ?', (tag,))
+        count = cursor.fetchone()[0]
+        print("{} ({})".format(tag, count))
+
 def command_feed_flow(args):
   """ Process articles from RSS feeds. """
   if not os.path.exists('.chi/feed'):
@@ -410,6 +431,8 @@ def command_feed(args):
     return command_feed_flow(args)
   elif args['search']:
     return command_feed_search(args)
+  elif args['tags']:
+    return command_feed_tags(args)
   else:
     raise NotImplementedError
 
