@@ -131,8 +131,8 @@ def store_new_entries(entries):
         try:
           cursor.execute('INSERT INTO `entries` VALUES (?,?);',
                          (entry['id'], json.dumps(entry)))
-          cursor.execute('INSERT INTO `classify` VALUES (?,?,?);',
-                         (entry['id'], flow['source'], now))
+          cursor.execute('INSERT INTO `tags` VALUES (?,?,?,?);',
+                         (entry['id'], flow['source'], now,''))
           added += 1
         except sqlite3.DatabaseError as e:
           # Ignore attempts to add duplicate entries
@@ -281,12 +281,14 @@ def command_feed_flow(args):
 
         with closing(connection.cursor()) as cursor:
           # Get the first entry matching one of the inlets
-          cursor.execute('SELECT ROWID, * FROM `classify` WHERE `edge` IN (?) ORDER BY `touched` LIMIT 1;',
+          cursor.execute('SELECT ROWID, entry, tag FROM `tags`\
+                          WHERE `tag` IN (?)\
+                          ORDER BY `touched` ASC, `modified` DESC LIMIT 1;',
                          node['inlets'])
           row = cursor.fetchone()
           if row is None:
             break
-          rowid, entry, edge, _ = row
+          rowid, entry, tag = row
 
           # Lookup the entry in the entry table
           cursor.execute('SELECT * FROM `entries` WHERE `id` == ?;', (entry,))
@@ -296,7 +298,7 @@ def command_feed_flow(args):
           # Display the entry and question
           entry = entry_fromRow(row)
           print('Q: {} ({})'.format(node['id'], node['description']))
-          print('\n{}\n'.format(edge))
+          print('\n{}\n'.format(tag))
           print(Terminal()('#', entry.title))
           print()
           print(strip_tags(entry.authors))
@@ -317,19 +319,19 @@ def command_feed_flow(args):
 
           # If no input was provided touch the row and move on
           elif s == '':
-            cursor.execute('UPDATE `classify` SET `touched` = ? WHERE ROWID == ?;',
+            cursor.execute('UPDATE `tags` SET `touched` = ? WHERE ROWID == ?;',
                            (datetime.now().isoformat(), rowid))
             print('Touched row(s)', cursor.rowcount)
             connection.commit()
             continue
 
-          # Otherwise find the associated outlet and reclassify the entry accordingly
+          # Otherwise find the associated outlet and retag the entry accordingly
           else:
             for outlet in node['outlets']:
               if s == outlet['answer']:
                 now = datetime.now().isoformat()
-                cursor.execute('UPDATE `classify` SET `edge` = ?, `touched` = ? WHERE ROWID == ?;',
-                               (outlet['edge'], now, rowid))
+                cursor.execute('UPDATE `tags` SET `tag`=?, `touched`=?, `modified`=? WHERE ROWID == ?;',
+                               (outlet['edge'], now, now, rowid))
                 cursor.execute('INSERT INTO receipts VALUES (?,?,?,?);',
                                (entry, node['id'], outlet['answer'], now))
                 print('Reclassified row(s)', cursor.rowcount)

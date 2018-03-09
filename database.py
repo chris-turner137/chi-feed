@@ -3,7 +3,7 @@ import sqlite3
 from contextlib import closing
 from collections import namedtuple
 
-def db_configure(connection):
+def db_configure(connection, update=True):
   """ Ensure that the database is valid. """
   with closing(connection.cursor()) as cursor:
     # Check if version table exists
@@ -27,22 +27,29 @@ def db_configure(connection):
       schema_semver = '0.0.0'
 
     # Update from 0.0.0 to 0.0.1
-    if schema_semver == '0.0.0':
-      from database_upgrade import db_upgrade_0_0_0_to_0_0_1
-      schema_semver = db_upgrade_0_0_0_to_0_0_1(connection)
+    if update:
+      if schema_semver == '0.0.0':
+        from database_upgrade import db_upgrade_0_0_0_to_0_0_1
+        schema_semver = db_upgrade_0_0_0_to_0_0_1(connection)
+      if schema_semver == '0.0.1':
+        from database_upgrade import db_upgrade_0_0_1_to_0_0_2
+        schema_semver = db_upgrade_0_0_1_to_0_0_2(connection)
 
     return schema_semver
 
   connection.commit()
 
 if __name__ == '__main__':
-  print("Schema version (curr):", '0.0.1')
+  print("Schema version (curr):", '0.0.2')
 
   if not os.path.exists('.chi/feed'):
     raise NotImplementedError
 
   with sqlite3.connect('.chi/feed/entries.db') as connection:
     connection.isolation_level = None
+
+    # Ensure that the database is initialised
+    print("Schema version (old):", db_configure(connection, update=False))
 
     # Ensure that the database is initialised
     print("Schema version (actu):", db_configure(connection))

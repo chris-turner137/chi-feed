@@ -6,7 +6,11 @@ from chi_feed import load_flow_config
 
 def db_upgrade_0_0_0_to_0_0_1(connection):
   with closing(connection.cursor()) as cursor:
-    cursor.execute('CREATE TABLE IF NOT EXISTS `receipts` (entry STRING, node STRING, outlet STRING, touch STRING, UNIQUE(entry, node));')
+    cursor.execute('CREATE TABLE `receipts` (entry STRING,\
+                                             node STRING,\
+                                             outlet STRING,\
+                                             touch STRING,\
+                                             UNIQUE(entry, node));')
 
     # Backtrack the flow configuration to find labelling rules
     flow = load_flow_config()
@@ -18,7 +22,7 @@ def db_upgrade_0_0_0_to_0_0_1(connection):
       if len(c) == 1:
         rules.append(c[0])
 
-    # Fabricate recepts - Add labels for all the questions where we know the flow
+    # Fabricate receipts
     cursor.execute('SELECT entry, edge FROM `classify`;')
     now = datetime.now().isoformat()
     for row in cursor:
@@ -33,5 +37,22 @@ def db_upgrade_0_0_0_to_0_0_1(connection):
         else:
           break
 
-    cursor.execute("UPDATE version SET `semver` = '0.0.1' WHERE `id` == 'schema';")
+    cursor.execute("UPDATE version SET `semver`='0.0.1' WHERE `id`=='schema';")
   return '0.0.1'
+
+def db_upgrade_0_0_1_to_0_0_2(connection):
+  with closing(connection.cursor()) as cursor:
+    # Create replacement table
+    cursor.execute('CREATE TABLE `tags` (entry STRING,\
+                                         tag STRING,\
+                                         modified STRING,\
+                                         touched STRING);')
+
+    # Copy the data into the new table
+    cursor.execute('INSERT INTO tags SELECT entry, edge, touched, touched FROM `classify`;')
+
+    # Remove the old table
+    cursor.execute('DROP TABLE `classify`;')
+
+    cursor.execute("UPDATE version SET `semver`='0.0.2' WHERE `id`=='schema';")
+  return '0.0.2'
