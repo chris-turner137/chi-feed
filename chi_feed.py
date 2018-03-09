@@ -333,7 +333,7 @@ def command_feed_flow(args):
                 cursor.execute('UPDATE `tags` SET `tag`=?, `touched`=?, `modified`=? WHERE ROWID == ?;',
                                (outlet['edge'], now, now, rowid))
                 cursor.execute('INSERT INTO receipts VALUES (?,?,?,?);',
-                               (entry, node['id'], outlet['answer'], now))
+                               (entry.id, node['id'], outlet['answer'], now))
                 print('Reclassified row(s)', cursor.rowcount)
                 connection.commit()
                 break
